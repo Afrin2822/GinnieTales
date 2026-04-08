@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  BASIC
+  PRO
+}
+
+enum Theme {
+  ADVENTURE
+  FANTASY
+  SPACE
+  BIRTHDAY
+  FRIENDSHIP
+}
+
+enum StoryStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+enum ProductCategory {
+  PRINTED_BOOK
+  PLUSH_TOY
+  POSTER
+  GREETING_CARD
+  MUG
+  TSHIRT
+  KEYCHAIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  RAZORPAY
+  STRIPE
+}
+
+enum OrderItemType {
+  DIGITAL_STORY
+  MERCHANDISE
+}
+
+enum CartItemType {
+  DIGITAL_STORY
+  MERCHANDISE
+}
+
+model User {
+  id             String         @id @default(cuid())
+  email          String         @unique
+  emailVerified  DateTime?
+  name           String?
+  image          String?
+  profilePhoto   String?
+  passwordHash   String?
+  provider       String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  credits        Int            @default(0)
+  plan           Plan           @default(FREE)
+  accounts       Account[]
+  sessions       Session[]
+  stories        Story[]
+  orders         Order[]
+  wishlistItems  WishlistItem[]
+  cart           Cart?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Story {
+  id                    String        @id @default(cuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  characterName         String
+  recipientName         String?
+  age                   Int
+  theme                 Theme
+  occasion              String?
+  uploadedPhotoUrl      String
+  generatedCharacterUrl String?
+  status                StoryStatus   @default(PENDING)
+  regenerationCount     Int           @default(0)
+  isUnlocked            Boolean       @default(false)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  pages                 StoryPage[]
+  order                 Order?
+  orderItems            OrderItem[]
+  cartItems             CartItem[]
+}
+
+model StoryPage {
+  id           String   @id @default(cuid())
+  storyId      String
+  story        Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  pageNumber   Int
+  text         String
+  imageUrl     String?
+  imagePrompt  String?
+  createdAt    DateTime @default(now())
+}
+
+model Product {
+  id            String          @id @default(cuid())
+  name          String
+  description   String
+  price         Float
+  category      ProductCategory
+  images        String[]
+  variants      Json?
+  stock         Int             @default(0)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  orderItems    OrderItem[]
+  wishlistItems WishlistItem[]
+  cartItems     CartItem[]
+}
+
+model Order {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storyId           String?         @unique
+  story             Story?          @relation(fields: [storyId], references: [id])
+  status            OrderStatus     @default(PENDING)
+  totalAmount       Float
+  currency          String          @default("INR")
+  paymentProvider   PaymentProvider
+  paymentId         String?
+  items             OrderItem[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model OrderItem {
+  id         String        @id @default(cuid())
+  orderId    String
+  order      Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String?
+  product    Product?      @relation(fields: [productId], references: [id])
+  storyId    String?
+  story      Story?        @relation(fields: [storyId], references: [id])
+  quantity   Int
+  unitPrice  Float
+  type       OrderItemType
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id         String       @id @default(cuid())
+  cartId     String
+  cart       Cart         @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId  String?
+  product    Product?     @relation(fields: [productId], references: [id])
+  storyId    String?
+  story      Story?       @relation(fields: [storyId], references: [id])
+  quantity   Int          @default(1)
+  type       CartItemType
+}
